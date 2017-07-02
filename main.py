@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, render_template, session, flash
+from flask import Flask, request, redirect, render_template, session, flash, make_response
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
@@ -9,6 +9,7 @@ app.config['DEBUG'] = True
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://build-a-blog:moopoo@localhost:8889/build-a-blog'
 app.config['SQLALCHEMY_ECHO'] = True
 db = SQLAlchemy(app)
+# Secret keys should not be out here. But for simplicity it will stay.
 app.secret_key = 'y247kGhns&zP3B'
 
 class BlogPost(db.Model):
@@ -16,13 +17,13 @@ class BlogPost(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(120))
     body = db.Column(db.Text)
-    completed = db.Column(db.Boolean)
+    deleted = db.Column(db.Boolean)
     owner_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
-    def __init__(self, name, owner):
+    def __init__(self, title, body, owner):
         self.title = title
         self.body = body
-        self.completed = False
+        self.deleted = False
         self.owner = owner
 
 class User(db.Model):
@@ -35,12 +36,6 @@ class User(db.Model):
         self.email = email
         self.password = password
 
-@app.before_request
-def require_login():
-    allowed_routes = ['login', 'register']
-    if request.endpoint not in allowed_routes and 'email' not in session:
-        return redirect('/login')
-
 @app.route('/login', methods=['POST', 'GET'])
 def login():
     if request.method == 'POST':
@@ -50,7 +45,7 @@ def login():
         if user and user.password == password:
             session['email'] = email
             flash('Logged In')
-            return redirect('/')
+            return redirect('/blog')
         else:
             flash('User password incorrect or user does not exist', 'error')
 
@@ -63,52 +58,78 @@ def register():
         password = request.form['password']
         verify = request.form['verify']
 
-        #TODO validate user's data
+        if password != verify:
+            flash("""Your passwords don't match. Please try again""")
+            return redirect('/register')
 
-        existing_user = User.query.filter_by(email=email).first()
-        if not existing_user:
-            new_user = User(email, password)
+        elif email in User.query.filter_by(email='email'):
+            flash("""Your email is previously registered. Please sign in.""")
+            return redirect('/register')
+
+        else:
+            new_user = User(email=email, password=password)
             db.session.add(new_user)
             db.session.commit()
             session['email'] = email
-            return redirect('/')
-        else:
-            #TODO user better response messaging
-            return '<h1>Duplicate user</h1>'
+            return redirect('/blog')
 
     return render_template('register.html')
 
 @app.route('/logout')
 def logout():
-    del session['email']
-    return redirect('/')
+    session.pop('email', None)
+    return redirect('/login')
 
-@app.route('/', methods=['POST', 'GET'])
+@app.route('/blog')
 def index():
-
     owner = User.query.filter_by(email=session['email']).first()
+    posts = BlogPost.query.filter_by(deleted=False, owner=owner).all()
+    diff = request.args.get('id')
 
+    if diff:
+        post = BlogPost.query.filter_by(id=diff).first()
+        return render_template('individ_post.html', post=post)
+
+    return render_template('blog.html', posts=posts)
+
+
+@app.route('/newpost', methods=['POST', 'GET'])
+def add_post():
     if request.method == 'POST':
-        blog_name = request.form['blog']
-        new_post = BlogPost(blog_name, owner)
+        owner = User.query.filter_by(email=session['email']).first()
+        blog_name = request.form['title']
+        post_body = request.form['post']
+
+        if blog_name == '':
+            error = 'Please fill in the title.'
+            return render_template('post.html', post=post_body, error=error)
+        if post_body == '':
+            error2 = 'Please fill in the body.'
+            return render_template('post.html', title=blog_name, error2=error2)
+
+        new_post = BlogPost(blog_name, post_body, owner)
         db.session.add(new_post)
         db.session.commit()
+        return redirect('/blog?id=' + str(new_post.id))
 
-    posts = BlogPost.query.filter_by(completed=False, owner=owner).all()
-    completed_posts = BlogPost.query.filter_by(completed=True, owner=owner).all()
-    return render_template('blog_post.html', title="Blog Name Here!", posts=posts,
-        completed_posts=completed_posts)
+    return render_template('post.html')
+
 
 @app.route('/delete-post', methods=['POST'])
 def delete_post():
     post_id = int(request.form['post-id'])
     post = BlogPost.query.get(post_id)
-    blog.completed = True
+    post.deleted = True
     db.session.add(post)
     db.session.commit()
 
-    return redirect('/')
+    return redirect('/blog')
 
+@app.before_request
+def require_login():
+    allowed_routes = ['login', 'register']
+    if request.endpoint not in allowed_routes and 'email' not in session:
+        return redirect('/login')
 
 if __name__ == '__main__':
     app.run()

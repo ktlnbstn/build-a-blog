@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h2><center>[Your Blog Title Here]</center></h2>
+    <ul>
+      {% for post in posts %}
+        <li>
+          <h4><a id="post_diff" href="./blog?id={{post.id}}">{{ post.title }}</a></h4>
+            <p>{{ post.body }}</p>
+              <form method="POST" action="/delete-post" style="display:inline-block;">
+                  <input type="hidden" name="post-id" value="{{post.id}}">
+                  <input type="submit" value="Delete Post">
+              </form>
+        </li>
+      {% endfor %}
+    </ul>
+{% endblock %}
