@@ -92,7 +92,6 @@ def index():
 
     return render_template('blog.html', posts=posts)
 
-
 @app.route('/newpost', methods=['POST', 'GET'])
 def add_post():
     if request.method == 'POST':
