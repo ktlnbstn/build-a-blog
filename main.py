@@ -1,12 +1,14 @@
 from flask import Flask, request, redirect, render_template, session, flash, make_response
 from flask_sqlalchemy import SQLAlchemy
+import os
 
 app = Flask(__name__)
 app.config['DEBUG'] = True
 
 # Note: the connection string after :// contains the following info:
 # user:password@server:portNumber/databaseName
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://build-a-blog:moopoo@localhost:8889/build-a-blog'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL',
+'mysql+pymysql://build-a-blog:moopoo@localhost:8889/build-a-blog')
 app.config['SQLALCHEMY_ECHO'] = True
 db = SQLAlchemy(app)
 # Secret keys should not be out here. But for simplicity it will stay.
